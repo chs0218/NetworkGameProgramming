@@ -10,18 +10,21 @@ bool IsBigEndian();
 bool IsLittleEndian()
 {
     u_short us = 0x0001;
-    char* p = (char*)&us;
-    return p[0];
+    us = htons(us);
+    return HIBYTE(us);
 }
 
 bool IsBigEndian()
 {
-    u_short us = 0x0100;
-    char* p = (char*)&us;
-    return p[0];
+    u_short us = 0x0001;
+    us = htons(us);
+    return LOBYTE(us);
 }
 
 int main() {
+
+    
+
     if (IsLittleEndian())
         printf("I'm Little Endian\n");
     else
