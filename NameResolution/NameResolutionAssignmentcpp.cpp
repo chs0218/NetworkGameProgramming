@@ -1,22 +1,25 @@
 #include "Common.h"
 #include <windows.h>
 
-void printAddr_list(hostent* target)
+void printAddr_list(const hostent* target)
 {
-	int i = 0;
-	while (target->h_addr_list[i])
+	struct in_addr addr;
+	char str[INET_ADDRSTRLEN];
+
+	for (int i = 0; target->h_addr_list[i] != NULL; ++i)
 	{
-		char str[INET_ADDRSTRLEN];
-		inet_ntop(AF_INET, &target->h_addr_list[i++], str, sizeof(str));
-		printf("%s\n", str);
+		memcpy(&addr, target->h_addr_list[i], target->h_length);
+		inet_ntop(AF_INET, &addr, str, sizeof(str));
+		printf("IP 주소[%d] = %s\n", i, str);
 	}
+	printf("\n");
 }
 
-void printH_aliases(hostent* target)
+void printH_aliases(const hostent* target)
 {
-	int i = 0;
-	while (target->h_aliases[i])
-		printf("%s\n", target->h_aliases[i++]);
+	for(int i=0; target->h_aliases[i] != NULL; ++i)
+		printf("Aliases[%d] = %s\n", i, target->h_aliases[i]);
+	printf("\n");
 }
 
 int main(int argc, char* argv[])
@@ -28,18 +31,28 @@ int main(int argc, char* argv[])
 
 	while (1)
 	{
-		char domainName[256];
+		char domainName[256] = { '\0' };
 		printf("도메인 이름을 입력해주세요: ");
-		scanf_s("%s", domainName);
+		scanf("%s", &domainName);
+		struct hostent* ptr = gethostbyname(domainName);
 
-		hostent* ptr = gethostbyname(domainName);
+		if (ptr == NULL) {
+			err_display("gethostname()");
+			continue;
+		}
 
-		printAddr_list(ptr);
-		printH_aliases(ptr);
+		printf("\n=========== nslookup ============\n");
+		char pingCommand[256] = "nslookup ";
+		strcat(pingCommand, domainName);
+		system(pingCommand);
+		printf("===================================\n\n");
 
-		system("nslookup www.google.co.kr");
 
 		
+		printf("\n============ myfunc =============\n");
+		printH_aliases(ptr);
+		printAddr_list(ptr);
+		printf("===================================\n\n");
 	}
 	// 윈속 종료
 	WSACleanup();
