@@ -29,32 +29,23 @@ int main(int argc, char* argv[])
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
 
-	while (1)
+	char domainName[256] = { '\0' };
+	for (int i = 1; i < argc; ++i)
 	{
-		char domainName[256] = { '\0' };
-		printf("도메인 이름을 입력해주세요: ");
-		scanf("%s", &domainName);
-		struct hostent* ptr = gethostbyname(domainName);
+		struct hostent* ptr = gethostbyname(argv[i]);
 
 		if (ptr == NULL) {
 			err_display("gethostname()");
-			continue;
+			return 1;
 		}
 
-		printf("\n=========== nslookup ============\n");
-		char pingCommand[256] = "nslookup ";
-		strcat(pingCommand, domainName);
-		system(pingCommand);
-		printf("===================================\n\n");
-
-
-		
 		printf("\n============ myfunc =============\n");
 		printH_aliases(ptr);
 		printAddr_list(ptr);
 		printf("===================================\n\n");
+
+		// 윈속 종료
+		WSACleanup();
+		return 0;
 	}
-	// 윈속 종료
-	WSACleanup();
-	return 0;
 }
