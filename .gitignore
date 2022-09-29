@@ -31,21 +31,5 @@
 *.out
 *.app
 
-Server/.vs/
-Server/x64/
-InitSocket/.vs/
-InitSocket/x64/
-ByteOrder/.vs/
-ByteOrder/x64/
-NameResolution/.vs/
-NameResolution/x64/
-IPAddr/.vs/
-IPAddr/x64/
-TCPServer/.vs/
-TCPServer/x64/
-TCPCleint/.vs/
-TCPCleint/x64/
-SendData/.vs/
-SendData/x64/
-Test/.vs/
-Test/x64/
+.vs
+x64
