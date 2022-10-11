@@ -2,7 +2,7 @@
 #include <fstream>
 
 #define SERVERPORT 9000
-#define BUFSIZE    256
+#define BUFSIZE    2048
 
 #pragma pack(1)
 struct DataSet {
@@ -12,10 +12,24 @@ struct DataSet {
 };
 #pragma pack()
 
+#pragma pack(1)
+struct Params {
+	SOCKET client_sock;
+	COORD curpos;
+};
+#pragma pack()
+
+COORD globalCurpos{ 0,-3 };
+HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+bool usingCursor = false;
+
 // 클라이언트와 데이터 통신
 DWORD WINAPI ProcessClient(LPVOID arg)
 {
-	SOCKET client_sock = (SOCKET)arg;
+	Params params;
+	params.client_sock = ((Params*)arg)->client_sock;
+	params.curpos = ((Params*)arg)->curpos;
+	params.curpos.Y += 1;
 	int retval;
 	struct sockaddr_in clientaddr;
 	char addr[INET_ADDRSTRLEN];
@@ -24,12 +38,12 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 
 	// 클라이언트 정보 얻기
 	addrlen = sizeof(clientaddr);
-	getpeername(client_sock, (struct sockaddr*)&clientaddr, &addrlen);
+	getpeername(params.client_sock, (struct sockaddr*)&clientaddr, &addrlen);
 	inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
 
 	// 클라이언트와 데이터 통신
 	while (1) {
-		retval = recv(client_sock, (char*)&data.len, sizeof(int), MSG_WAITALL);
+		retval = recv(params.client_sock, (char*)&data.len, sizeof(int), MSG_WAITALL);
 		if (retval == SOCKET_ERROR) {
 			err_display("recv()");
 			break;
@@ -37,7 +51,7 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 		else if (retval == 0)
 			break;
 
-		retval = recv(client_sock, data.name, 50, MSG_WAITALL);
+		retval = recv(params.client_sock, data.name, 50, MSG_WAITALL);
 		if (retval == SOCKET_ERROR) {
 			err_display("recv()");
 			break;
@@ -47,29 +61,34 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 
 		std::ofstream out{ data.name, std::ios::binary };
 
-		HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
-		CONSOLE_SCREEN_BUFFER_INFO curInfo; // 콘솔 출력창의 정보를 담기 위해서 정의한 구조체
-		GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &curInfo);
-		COORD pos{ curInfo.dwCursorPosition.X, curInfo.dwCursorPosition.Y };
-
-		while (retval)
+		while (1)
 		{
-			retval = recv(client_sock, data.buf, BUFSIZE, MSG_WAITALL);
+			retval = recv(params.client_sock, data.buf, BUFSIZE, MSG_WAITALL);
 			if (retval == SOCKET_ERROR) {
 				err_display("recv()");
 				break;
 			}
-			out.write(data.buf, BUFSIZE);
+			if (retval == 0)
+				break;
+
+			out.write(data.buf, retval);
+			while (usingCursor) { Sleep(5); }
+			usingCursor = true;
+			SetConsoleCursorPosition(handle, params.curpos);
 			printf("전송률: %d%%\n", static_cast<int>(((float)(out.tellp()) / (float)data.len) * (float)100.0f));
-			SetConsoleCursorPosition(handle, pos);
+			usingCursor = false;
 		}
-		pos.Y += 1;
-		SetConsoleCursorPosition(handle, pos);
 	}
 
 	// 소켓 닫기
-	closesocket(client_sock);
+	closesocket(params.client_sock);
+	params.curpos.Y += 1;
+
+	while (usingCursor) { Sleep(5); }
+	usingCursor = true;
+	SetConsoleCursorPosition(handle, params.curpos);
 	printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(clientaddr.sin_port));
+	usingCursor = false;
 	return 0;
 
 }
@@ -101,29 +120,37 @@ int main(int argc, char* argv[])
 	if (retval == SOCKET_ERROR) err_quit("listen()");
 
 	// 데이터 통신에 사용할 변수
-	SOCKET client_sock;
 	struct sockaddr_in clientaddr;
 	int addrlen;
 	HANDLE hThread;
-
+	
 	while (1) {
 		// accept()
+		Params clientParams;
 		addrlen = sizeof(clientaddr);
-		client_sock = accept(listen_sock, (struct sockaddr*)&clientaddr, &addrlen);
-		if (client_sock == INVALID_SOCKET) {
+		clientParams.client_sock = accept(listen_sock, (struct sockaddr*)&clientaddr, &addrlen);
+		if (clientParams.client_sock == INVALID_SOCKET) {
 			err_display("accept()");
 			break;
 		}
 
+
 		// 접속한 클라이언트 정보 출력
 		char addr[INET_ADDRSTRLEN];
 		inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
-		printf("\n[TCP 서버] 클라이언트 접속: IP 주소=%s, 포트 번호=%d\n",
-			addr, ntohs(clientaddr.sin_port));
+		globalCurpos.Y += 4;
+
+		while (usingCursor) { Sleep(5); }
+		usingCursor = true;
+		SetConsoleCursorPosition(handle, globalCurpos);
+		printf("[TCP 서버] 클라이언트 접속: IP 주소=%s, 포트 번호=%d", addr, ntohs(clientaddr.sin_port));
+		usingCursor = false;
+
+		clientParams.curpos = globalCurpos;
 
 		// 스레드 생성
-		hThread = CreateThread(NULL, 0, ProcessClient, (LPVOID)client_sock, 0, NULL);
-		if (hThread == NULL) { closesocket(client_sock); }
+		hThread = CreateThread(NULL, 0, ProcessClient, (LPVOID)&clientParams, 0, NULL);
+		if (hThread == NULL) { closesocket(clientParams.client_sock); }
 		else { CloseHandle(hThread); }
 	}
 

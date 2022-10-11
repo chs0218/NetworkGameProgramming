@@ -19,8 +19,10 @@ int main(int argc, char* argv[])
 {
 	int retval = 0;
 
-	if (argc == 1)
+	if (argc != 3)
 		return 1;
+
+	SERVERIP = argv[1];
 
 	// 윈속 초기화
 	WSADATA wsa;
@@ -42,42 +44,41 @@ int main(int argc, char* argv[])
 
 	// 데이터 통신에 사용할 변수
 	DataSet data;
-	for (int i = 1; i < argc; ++i)
-	{
-		std::ifstream in{ argv[i], std::ios::binary };
-		in.seekg(0, std::ios::end);
-		data.len = in.tellg();
-		in.seekg(0, std::ios::beg);
+	std::ifstream in{ argv[2], std::ios::binary };
+	in.seekg(0, std::ios::end);
+	data.len = in.tellg();
+	in.seekg(0, std::ios::beg);
 
-		char* pFileName = strrchr(argv[i], '\\');
-		if (pFileName != NULL)
-			strcpy(data.name, pFileName + 1);
-		else
-			strcpy(data.name, argv[i]);
+	char* pFileName = strrchr(argv[2], '\\');
 
-		retval = send(sock, (char*)&data.len, sizeof(int), 0);
-		if (retval == SOCKET_ERROR) {
-			err_display("send()");
-		}
+	(pFileName) ? strcpy(data.name, pFileName + 1) : strcpy(data.name, argv[2]);
 
-		retval = send(sock, (char*)&data.name, 50, 0);
-		if (retval == SOCKET_ERROR) {
-			err_display("send()");
-		}
-
-		while (in)
-		{
-			in.read(data.buf, BUFSIZE);
-			retval = send(sock, data.buf, BUFSIZE, 0);
-			if (retval == SOCKET_ERROR) {
-				err_display("send()");
-				break;
-			}
-		}
-
-		printf("[TCP 클라이언트] %d+%d바이트를 "
-			"보냈습니다.\n", (int)sizeof(int), data.len);
+	retval = send(sock, (char*)&data.len, sizeof(int), 0);
+	if (retval == SOCKET_ERROR) {
+		err_display("send()");
 	}
+
+	retval = send(sock, (char*)&data.name, 50, 0);
+	if (retval == SOCKET_ERROR) {
+		err_display("send()");
+	}
+
+	while (in.read(data.buf, BUFSIZE))
+	{
+		retval = send(sock, data.buf, BUFSIZE, 0);
+		if (retval == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+	}
+
+	retval = send(sock, data.buf, data.len % BUFSIZE, 0);
+	if (retval == SOCKET_ERROR) {
+		err_display("send()");
+	}
+
+	printf("[TCP 클라이언트] %d+%d바이트를 "
+		"보냈습니다.\n", (int)sizeof(int), data.len);
 
 	// 소켓 닫기
 	closesocket(sock);
