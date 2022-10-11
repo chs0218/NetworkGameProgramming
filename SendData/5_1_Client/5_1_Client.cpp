@@ -1,23 +1,26 @@
 #include "..\..\Common.h"
-#include <iostream>
+#include <Windows.h>
+#include <string>
 #include <fstream>
 
 char* SERVERIP = (char*)"127.0.0.1";
 #define SERVERPORT 9000
+#define BUFSIZE 512
 
-#pragma pack()
+#pragma pack(1)
 struct DataSet {
-	int len;	// 데이터 길이
-	char name[50];	// 데이터 파일 이름
-	char* buf;	// 데이터 버퍼
+	int len = 0;	// 데이터 길이
+	char name[50] = "\0";	// 데이터 파일 이름
+	char buf[BUFSIZE] = "\0";	// 데이터 버퍼
 };
+#pragma pack()
 
 int main(int argc, char* argv[])
 {
 	int retval = 0;
 
-	// 명령행 인수가 있으면 IP 주소로 사용
-	if (argc > 1) SERVERIP = argv[1];
+	if (argc == 1)
+		return 1;
 
 	// 윈속 초기화
 	WSADATA wsa;
@@ -39,40 +42,42 @@ int main(int argc, char* argv[])
 
 	// 데이터 통신에 사용할 변수
 	DataSet data;
-	std::ifstream in{ "tmp.txt", std::ios::binary };
-	
-	in.seekg(0, std::ios::end);
-	data.len = in.tellg();
-	in.seekg(0, std::ios::beg);
+	for (int i = 1; i < argc; ++i)
+	{
+		std::ifstream in{ argv[i], std::ios::binary };
+		in.seekg(0, std::ios::end);
+		data.len = in.tellg();
+		in.seekg(0, std::ios::beg);
 
-	data.buf = new char[data.len];
-	in.read(data.buf, data.len);
+		char* pFileName = strrchr(argv[i], '\\');
+		if (pFileName != NULL)
+			strcpy(data.name, pFileName + 1);
+		else
+			strcpy(data.name, argv[i]);
 
-	std::cout << data.len << std::endl;
-	strncpy(data.name, "test.txt", strlen("test.txt"));
+		retval = send(sock, (char*)&data.len, sizeof(int), 0);
+		if (retval == SOCKET_ERROR) {
+			err_display("send()");
+		}
 
-	// 서버와 데이터 통신
-	
-	// 데이터 보내기(고정 길이)
-	retval = send(sock, (char*)&data.len, sizeof(int), 0);
-	if (retval == SOCKET_ERROR) {
-		err_display("send()");
+		retval = send(sock, (char*)&data.name, 50, 0);
+		if (retval == SOCKET_ERROR) {
+			err_display("send()");
+		}
+
+		while (in)
+		{
+			in.read(data.buf, BUFSIZE);
+			retval = send(sock, data.buf, BUFSIZE, 0);
+			if (retval == SOCKET_ERROR) {
+				err_display("send()");
+				break;
+			}
+		}
+
+		printf("[TCP 클라이언트] %d+%d바이트를 "
+			"보냈습니다.\n", (int)sizeof(int), data.len);
 	}
-
-	retval = send(sock, (char*)&data.name, 50, 0);
-	if (retval == SOCKET_ERROR) {
-		err_display("send()");
-	}
-
-	// 데이터 보내기(가변 길이)
-	retval = send(sock, data.buf, data.len, 0);
-	if (retval == SOCKET_ERROR) {
-		err_display("send()");
-	}
-	
-	delete[] data.buf;
-	printf("[TCP 클라이언트] %d+%d바이트를 "
-		"보냈습니다.\n", (int)sizeof(int), retval);
 
 	// 소켓 닫기
 	closesocket(sock);

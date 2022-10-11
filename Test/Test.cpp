@@ -1,48 +1,22 @@
 #include <iostream>
-#include <memory>
+#include <fstream>
 
-int globalId = 0;
-
-class GameObject {
-private:
-	int id = 0;
-	GameObject* m_pParent = nullptr;
-	std::shared_ptr<GameObject> m_pChild = nullptr;
-	std::shared_ptr<GameObject> m_pSibling = nullptr;
-public:
-	GameObject() { id = globalId++; 
-		std::cout << id << " - Created" << std::endl;
-	};
-	~GameObject() {
-		std::cout << id << " - Deleted" << std::endl;
-	}
-
-	void SetParent(GameObject* target) { m_pParent = target; }
-	void SetChild(std::shared_ptr<GameObject> target) { m_pChild = target; }
-	void SetSibling(std::shared_ptr<GameObject> target) { m_pSibling = target; }
-};
+#define BUFSIZE 512
 
 int main()
 {
-	std::unique_ptr<GameObject> mainObject1 = std::make_unique<GameObject>();
-	std::unique_ptr<GameObject> mainObject2 = std::make_unique<GameObject>();
+	std::ifstream in{ "tmp4.txt", std::ios::binary};
+	std::ofstream out{ "tmp.txt", std::ios::binary };
+	in.seekg(0, std::ios::end);
+	int len = in.tellg();
+	in.seekg(0, std::ios::beg);
 
-	std::shared_ptr<GameObject> mainObject = std::make_shared<GameObject>();
-	std::shared_ptr<GameObject> childObject = std::make_shared<GameObject>();
-	std::shared_ptr<GameObject> siblingObject = std::make_shared<GameObject>();
-	std::shared_ptr<GameObject> childObject_1 = std::make_shared<GameObject>();
-	std::shared_ptr<GameObject> siblingObject_1 = std::make_shared<GameObject>();
-
-
-	mainObject->SetChild(childObject);
-
-	childObject->SetParent(mainObject.get());
-	childObject->SetChild(childObject_1);
-	childObject->SetSibling(siblingObject);
-
-	childObject_1->SetParent(childObject.get());
-	childObject_1->SetSibling(siblingObject_1);
-
-	mainObject1->SetChild(mainObject);
-	mainObject2->SetChild(mainObject);
+	char buf[BUFSIZE] ="\0";
+	while (in)
+	{
+		in.read(buf, BUFSIZE);
+		out.write(buf, sizeof(buf));
+		std::cout << len << std::endl;
+		std::cout << (float)((float)out.tellp() / (float)len) * 100.0f << std::endl;
+	}
 }
