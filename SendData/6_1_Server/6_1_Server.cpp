@@ -19,9 +19,8 @@ struct Params {
 };
 #pragma pack()
 
-COORD globalCurpos{ 0,-3 };
 HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
-bool usingCursor = false;
+CRITICAL_SECTION cs;
 
 // 클라이언트와 데이터 통신
 DWORD WINAPI ProcessClient(LPVOID arg)
@@ -72,11 +71,10 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 				break;
 
 			out.write(data.buf, retval);
-			while (usingCursor) { Sleep(5); }
-			usingCursor = true;
+			EnterCriticalSection(&cs);
 			SetConsoleCursorPosition(handle, params.curpos);
 			printf("전송률: %d%%\n", static_cast<int>(((float)(out.tellp()) / (float)data.len) * (float)100.0f));
-			usingCursor = false;
+			LeaveCriticalSection(&cs);
 		}
 	}
 
@@ -84,11 +82,10 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 	closesocket(params.client_sock);
 	params.curpos.Y += 1;
 
-	while (usingCursor) { Sleep(5); }
-	usingCursor = true;
+	EnterCriticalSection(&cs);
 	SetConsoleCursorPosition(handle, params.curpos);
 	printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(clientaddr.sin_port));
-	usingCursor = false;
+	LeaveCriticalSection(&cs);
 	return 0;
 
 }
@@ -101,6 +98,7 @@ int main(int argc, char* argv[])
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
+
 
 	// 소켓 생성
 	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -123,7 +121,10 @@ int main(int argc, char* argv[])
 	struct sockaddr_in clientaddr;
 	int addrlen;
 	HANDLE hThread;
-	
+	COORD globalCurpos{ 0,-3 };
+
+	InitializeCriticalSection(&cs);
+
 	while (1) {
 		// accept()
 		Params clientParams;
@@ -140,11 +141,10 @@ int main(int argc, char* argv[])
 		inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
 		globalCurpos.Y += 4;
 
-		while (usingCursor) { Sleep(5); }
-		usingCursor = true;
+		EnterCriticalSection(&cs);
 		SetConsoleCursorPosition(handle, globalCurpos);
 		printf("[TCP 서버] 클라이언트 접속: IP 주소=%s, 포트 번호=%d", addr, ntohs(clientaddr.sin_port));
-		usingCursor = false;
+		LeaveCriticalSection(&cs);
 
 		clientParams.curpos = globalCurpos;
 
@@ -154,6 +154,7 @@ int main(int argc, char* argv[])
 		else { CloseHandle(hThread); }
 	}
 
+	DeleteCriticalSection(&cs);
 	// 소켓 닫기
 	closesocket(listen_sock);
 
