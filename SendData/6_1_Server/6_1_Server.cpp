@@ -121,7 +121,11 @@ int main(int argc, char* argv[])
 	struct sockaddr_in clientaddr;
 	int addrlen;
 	HANDLE hThread;
-	COORD globalCurpos{ 0,-3 };
+
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	CONSOLE_SCREEN_BUFFER_INFO curInfo; // 콘솔 출력창의 정보를 담기 위해서 정의한 구조체
+	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &curInfo);
+	COORD globalCurpos{ curInfo.dwCursorPosition.X, curInfo.dwCursorPosition.Y - 4 };
 
 	InitializeCriticalSection(&cs);
 
